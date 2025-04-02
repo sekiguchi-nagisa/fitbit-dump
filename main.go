@@ -3,14 +3,15 @@ package main
 import (
 	"fmt"
 	"github.com/alecthomas/kong"
+	"github.com/joho/godotenv"
 	"os"
 	"runtime/debug"
 )
 
 var CLI struct {
-	Version bool   `short:"v"  help:"Print version information and exit"`
-	Env     string `short:"e" help:"Set environment variables (access token)"`
-	Output  string `short:"o" help:"Set output file (default ./output.sqlite3)"`
+	Version kong.VersionFlag `short:"v" help:"Show version information"`
+	Env     string           `short:"e" required:"" help:"Set env file"`
+	Output  string           `short:"o" required:"" help:"Set output file"`
 }
 
 var version = "" // for version embedding (specified like "-X main.version=v0.1.0")
@@ -36,9 +37,41 @@ func getVersion() string {
 }
 
 func main() {
-	kong.Parse(&CLI, kong.UsageOnError())
+	kong.Parse(&CLI, kong.UsageOnError(), kong.Vars{"version": getVersion()})
 	if CLI.Version {
 		fmt.Println(getVersion())
 		os.Exit(0)
 	}
+	envs, err := godotenv.Read(CLI.Env)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error reading `%s` file: %s\n", CLI.Env, err.Error())
+		os.Exit(1)
+	}
+
+	// get access_token
+	credential := FromEnvs(envs)
+	err = RefreshCredentials(&credential)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error RefreshCredentials: %s\n", err.Error())
+		os.Exit(1)
+	}
+
+	// save new credential
+	envs = credential.ToEnvs()
+	err = godotenv.Write(envs, CLI.Env)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error writing `%s` file: %s\n", CLI.Env, err.Error())
+		os.Exit(1)
+	}
+
+	// get steps
+	out, err := GetSteps(&credential, "1m")
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Error GetSteps: %s\n", err.Error())
+		os.Exit(1)
+	}
+	for _, step := range out {
+		fmt.Printf("%s %s\n", step.Day, step.Steps)
+	}
+
 }
