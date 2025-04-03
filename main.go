@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
+	"log/slog"
 	"os"
 	"runtime/debug"
 )
@@ -44,7 +45,7 @@ func main() {
 	}
 	envs, err := godotenv.Read(CLI.Env)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error reading `%s` file: %s\n", CLI.Env, err.Error())
+		slog.Error(fmt.Sprintf("Error reading file: %s\n", err.Error()))
 		os.Exit(1)
 	}
 
@@ -52,7 +53,7 @@ func main() {
 	credential := FromEnvs(envs)
 	err = RefreshCredentials(&credential)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error RefreshCredentials: %s\n", err.Error())
+		slog.Error(fmt.Sprintf("Error RefreshCredentials: %s\n", err.Error()))
 		os.Exit(1)
 	}
 
@@ -60,14 +61,14 @@ func main() {
 	envs = credential.ToEnvs()
 	err = godotenv.Write(envs, CLI.Env)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error writing `%s` file: %s\n", CLI.Env, err.Error())
+		slog.Error(fmt.Sprintf("Error writing file: %s\n", err.Error()))
 		os.Exit(1)
 	}
 
 	// get steps
 	out, err := GetSteps(&credential, "1m")
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "Error GetSteps: %s\n", err.Error())
+		slog.Error(fmt.Sprintf("Error GetSteps: %s\n", err.Error()))
 		os.Exit(1)
 	}
 	for _, step := range out {
