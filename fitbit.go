@@ -43,7 +43,7 @@ type ActivitiesSteps struct {
 	Values []Steps `json:"activities-steps"`
 }
 
-func GetSteps(credential *FitbitCredential, duration string) ([]Steps, error) {
+func GetSteps(credential *FitbitCredential, duration string, verbose bool) ([]Steps, error) {
 	url := fmt.Sprintf("https://api.fitbit.com/1/user/-/activities/steps/date/today/%s.json", duration)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -63,13 +63,15 @@ func GetSteps(credential *FitbitCredential, duration string) ([]Steps, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(string(body))
+	if verbose {
+		fmt.Println(string(body))
+	}
 	var ret ActivitiesSteps
 	err = json.Unmarshal(body, &ret)
 	return ret.Values, err
 }
 
-func RefreshCredentials(credential *FitbitCredential) error {
+func RefreshCredentials(credential *FitbitCredential, verbose bool) error {
 	values := url.Values{}
 	values.Set("grant_type", "refresh_token")
 	values.Set("refresh_token", credential.RefreshToken)
@@ -82,6 +84,9 @@ func RefreshCredentials(credential *FitbitCredential) error {
 	req.Header.Set("authorization", "Basic "+credential.BasicToken)
 	req.Header.Set("content-type", "application/x-www-form-urlencoded")
 
+	if verbose {
+		fmt.Println("Update credential ...")
+	}
 	client := &http.Client{}
 	res, err := client.Do(req)
 	if err != nil {
@@ -92,8 +97,11 @@ func RefreshCredentials(credential *FitbitCredential) error {
 	}(res.Body)
 	var ret map[string]interface{}
 	err = json.NewDecoder(res.Body).Decode(&ret)
-	fmt.Println("update refresh token")
 	credential.AccessToken = ret["access_token"].(string)
 	credential.RefreshToken = ret["refresh_token"].(string)
+	if verbose {
+		fmt.Println("new access_token: " + ret["access_token"].(string))
+		fmt.Println("new refresh_token: " + ret["refresh_token"].(string))
+	}
 	return err
 }

@@ -16,6 +16,7 @@ var CLI struct {
 	Env      string           `short:"e" required:"" help:"Set env file"`
 	Output   string           `short:"o" required:"" help:"Set output file"`
 	Duration string           `short:"d" optional:"" default:"1m" help:"Set duration (1m, 1y)"`
+	Debug    bool             `optional:"" default:"false" help:"Set debug mode"`
 }
 
 var version = "" // for version embedding (specified like "-X main.version=v0.1.0")
@@ -54,7 +55,7 @@ func main() {
 
 	// get access_token
 	credential := FromEnvs(envs)
-	err = RefreshCredentials(&credential)
+	err = RefreshCredentials(&credential, CLI.Debug)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error RefreshCredentials: %s\n", err.Error()))
 		os.Exit(1)
@@ -69,13 +70,16 @@ func main() {
 	}
 
 	// get steps
-	out, err := GetSteps(&credential, CLI.Duration)
+	out, err := GetSteps(&credential, CLI.Duration, CLI.Debug)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error GetSteps: %s\n", err.Error()))
 		os.Exit(1)
 	}
-	for _, step := range out {
-		fmt.Printf("%s %s\n", step.Day, step.Steps)
+	if CLI.Debug {
+		fmt.Println("Successfully fetched steps:")
+		for _, step := range out {
+			fmt.Printf("%s %s\n", step.Day, step.Steps)
+		}
 	}
 
 	// save to DB
