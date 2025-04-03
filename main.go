@@ -1,18 +1,21 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	"github.com/alecthomas/kong"
 	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 	"log/slog"
 	"os"
 	"runtime/debug"
 )
 
 var CLI struct {
-	Version kong.VersionFlag `short:"v" help:"Show version information"`
-	Env     string           `short:"e" required:"" help:"Set env file"`
-	Output  string           `short:"o" required:"" help:"Set output file"`
+	Version  kong.VersionFlag `short:"v" help:"Show version information"`
+	Env      string           `short:"e" required:"" help:"Set env file"`
+	Output   string           `short:"o" required:"" help:"Set output file"`
+	Duration string           `short:"d" optional:"" default:"1m" help:"Set duration (1m, 1y)"`
 }
 
 var version = "" // for version embedding (specified like "-X main.version=v0.1.0")
@@ -66,7 +69,7 @@ func main() {
 	}
 
 	// get steps
-	out, err := GetSteps(&credential, "1m")
+	out, err := GetSteps(&credential, CLI.Duration)
 	if err != nil {
 		slog.Error(fmt.Sprintf("Error GetSteps: %s\n", err.Error()))
 		os.Exit(1)
@@ -75,4 +78,18 @@ func main() {
 		fmt.Printf("%s %s\n", step.Day, step.Steps)
 	}
 
+	// save to DB
+	db, err := sql.Open("sqlite3", CLI.Output)
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error Open: %s\n", err.Error()))
+		os.Exit(1)
+	}
+	defer func(conn *sql.DB) {
+		_ = conn.Close()
+	}(db)
+	err = InsertSteps(db, out)
+	if err != nil {
+		slog.Error(fmt.Sprintf("Error InsertSteps: %s\n", err.Error()))
+		os.Exit(1)
+	}
 }
