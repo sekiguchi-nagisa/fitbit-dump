@@ -7,7 +7,6 @@ cd $SCRIPT_DIR/../    # move to project top
 assert (command -v go &>> /dev/null) : "command not found: go"
 assert (command -v git &>> /dev/null) : "command not found: git"
 
-git config --global --add safe.directory /github/workspace
 var version = "$(git describe --tags)"
 $version = $version.empty() ? "0.0.0" : $version.split("-")[0]
 if $version.startsWith('v') {
