@@ -9,6 +9,7 @@
 *.dylib
 fitbit-dump
 *.sqlite3
+build
 
 # Test binary, built with `go test -c`
 *.test
