@@ -1,0 +1,22 @@
+name: Upload Release Asset
+
+on:
+  push:
+    # Sequence of patterns matched against refs/tags
+    tags:
+      - 'v*.*.*' # Push events to matching v*, i.e. v1.0, v20.15.10
+
+#on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Release Asset
+        uses: .
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          files: 'fitbit-dump-*'
