@@ -15,4 +15,4 @@ RUN zypper addrepo --no-gpgcheck -f https://download.opensuse.org/repositories/h
 WORKDIR /home/tux/fitbit-dump/
 
 CMD ls ./ && git config --global --add safe.directory "${PWD}" && \
-    arsh ./scripts/cross_compile.arsh && cp fitbit-dump-* /mnt/
+    arsh ./scripts/cross_compile.arsh && ls && cp fitbit-dump-* /mnt/
