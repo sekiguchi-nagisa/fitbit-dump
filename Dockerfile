@@ -1,6 +1,6 @@
 FROM opensuse/tumbleweed
 
-RUN zypper in -y git go1.22 diffutils
+RUN zypper in -y git go diffutils
 
 RUN curl -L https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz > zig-linux-x86_64-0.14.0.tar.xz && \
     tar -xf zig-linux-x86_64-0.14.0.tar.xz && mkdir -p /opt && cp -r zig-linux-x86_64-0.14.0 /opt/
@@ -14,4 +14,5 @@ RUN zypper addrepo --no-gpgcheck -f https://download.opensuse.org/repositories/h
 
 WORKDIR /home/tux/fitbit-dump/
 
-CMD ls ./ && arsh ./scripts/cross_compile.arsh && cp fitbit-dump-* /mnt/
+CMD ls ./ && git config --global --add safe.directory "${PWD}" && \
+    arsh ./scripts/cross_compile.arsh && cp fitbit-dump-* /mnt/
