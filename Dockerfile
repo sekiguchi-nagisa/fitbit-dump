@@ -3,7 +3,8 @@ FROM opensuse/tumbleweed
 RUN zypper in -y git go diffutils
 
 RUN curl -L https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz > zig-linux-x86_64-0.14.0.tar.xz && \
-    tar -xf zig-linux-x86_64-0.14.0.tar.xz && mkdir -p /opt && cp -r zig-linux-x86_64-0.14.0 /opt/
+    tar -xf zig-linux-x86_64-0.14.0.tar.xz && mkdir -p /opt && mkdir -p /mnt \
+    cp -r zig-linux-x86_64-0.14.0 /opt/
 
 ENV PATH=$PATH:/opt/zig-linux-x86_64-0.14.0
 
@@ -12,7 +13,11 @@ RUN zypper addrepo --no-gpgcheck -f https://download.opensuse.org/repositories/h
     zypper refresh && \
     zypper install -y arsh
 
+# under Github Actions, WORKDIR always indicates GITHUB_WORKSPACE (source code location)
+# so, if create directory at WORKDIR, need root privilege
+# (https://docs.github.com/en/actions/creating-actions/dockerfile-support-for-github-actions)
 WORKDIR /home/tux/fitbit-dump/
 
-CMD ls ./ && git config --global --add safe.directory "${PWD}" && \
-    arsh ./scripts/cross_compile.arsh && ls && cp fitbit-dump-* /mnt/
+CMD DIR="$(pwd)" && cd  /home/tux/fitbit-dump && git config --global --add safe.directory "${PWD}" && \
+    arsh ./scripts/cross_compile.arsh && \
+    cp fitbit-dump-* /mnt/ && (cp fitbit-dump-* "$DIR" || true)
