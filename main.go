@@ -3,12 +3,13 @@ package main
 import (
 	"database/sql"
 	"fmt"
-	"github.com/alecthomas/kong"
-	"github.com/joho/godotenv"
-	_ "github.com/mattn/go-sqlite3"
 	"log/slog"
 	"os"
 	"runtime/debug"
+
+	"github.com/alecthomas/kong"
+	"github.com/joho/godotenv"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var CLI struct {

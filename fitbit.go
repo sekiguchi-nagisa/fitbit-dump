@@ -44,8 +44,8 @@ type ActivitiesSteps struct {
 }
 
 func GetSteps(credential *FitbitCredential, duration string, verbose bool) ([]Steps, error) {
-	url := fmt.Sprintf("https://api.fitbit.com/1/user/-/activities/steps/date/today/%s.json", duration)
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	targetUri := fmt.Sprintf("https://api.fitbit.com/1/user/-/activities/steps/date/today/%s.json", duration)
+	req, err := http.NewRequest(http.MethodGet, targetUri, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func RefreshCredentials(credential *FitbitCredential, verbose bool) error {
 	defer func(Body io.ReadCloser) {
 		_ = Body.Close()
 	}(res.Body)
-	var ret map[string]interface{}
+	var ret map[string]any
 	err = json.NewDecoder(res.Body).Decode(&ret)
 	credential.AccessToken = ret["access_token"].(string)
 	credential.RefreshToken = ret["refresh_token"].(string)
