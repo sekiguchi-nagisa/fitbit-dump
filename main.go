@@ -8,15 +8,14 @@ import (
 	"runtime/debug"
 
 	"github.com/alecthomas/kong"
-	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
 var CLI struct {
 	Version  kong.VersionFlag `short:"v" help:"Show version information"`
-	Env      string           `short:"e" required:"" help:"Set env file"`
+	Env      string           `short:"e" required:"" help:"Set access token JSON file"`
 	Output   string           `short:"o" required:"" help:"Set output file"`
-	Duration string           `short:"d" optional:"" default:"1m" help:"Set duration (1m, 1y)"`
+	Duration string           `short:"d" optional:"" default:"1m" help:"Set duration (1d, 1w, 1m, 1y)"`
 	Debug    bool             `optional:"" default:"false" help:"Set debug mode"`
 }
 
@@ -48,33 +47,47 @@ func main() {
 		fmt.Println(getVersion())
 		os.Exit(0)
 	}
-	envs, err := godotenv.Read(CLI.Env)
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error reading file: %s\n", err.Error()))
+	if err := run(); err != nil {
+		slog.Error(err.Error())
 		os.Exit(1)
 	}
+}
 
+func run() error {
 	// get access_token
-	credential := FromEnvs(envs)
-	err = RefreshCredentials(&credential, CLI.Debug)
+	credential, err := LoadToken(CLI.Env)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error RefreshCredentials: %s\n", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("Error LoadToken: %w", err)
 	}
-
-	// save new credential
-	envs = credential.ToEnvs()
-	err = godotenv.Write(envs, CLI.Env)
+	updated, err := credential.Refresh(CLI.Debug)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error writing file: %s\n", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("Error Refresh: %w", err)
+	}
+	if updated {
+		// save new credential
+		if err = SaveToken(CLI.Env, credential); err != nil {
+			return fmt.Errorf("Error SaveToken: %w", err)
+		}
 	}
 
 	// get steps
-	out, err := GetSteps(&credential, CLI.Duration, CLI.Debug)
+	out, err := GetSteps(credential, CLI.Duration, CLI.Debug)
+	if err != nil && isUnauthorized(err) && credential.RefreshToken != "" {
+		// the access token was rejected even though its recorded expiry had not
+		// passed; refresh it once and retry.
+		if CLI.Debug {
+			fmt.Println("The access token was rejected, refreshing it ...")
+		}
+		if _, refreshErr := credential.refresh(true, CLI.Debug); refreshErr != nil {
+			return fmt.Errorf("Error Refresh: %w", refreshErr)
+		}
+		if err = SaveToken(CLI.Env, credential); err != nil {
+			return fmt.Errorf("Error SaveToken: %w", err)
+		}
+		out, err = GetSteps(credential, CLI.Duration, CLI.Debug)
+	}
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error GetSteps: %s\n", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("Error GetSteps: %w", err)
 	}
 	if CLI.Debug {
 		fmt.Println("Successfully fetched steps:")
@@ -86,15 +99,13 @@ func main() {
 	// save to DB
 	db, err := sql.Open("sqlite3", CLI.Output)
 	if err != nil {
-		slog.Error(fmt.Sprintf("Error Open: %s\n", err.Error()))
-		os.Exit(1)
+		return fmt.Errorf("Error Open: %w", err)
 	}
 	defer func(conn *sql.DB) {
 		_ = conn.Close()
 	}(db)
-	err = InsertSteps(db, out)
-	if err != nil {
-		slog.Error(fmt.Sprintf("Error InsertSteps: %s\n", err.Error()))
-		os.Exit(1)
+	if err = InsertSteps(db, out); err != nil {
+		return fmt.Errorf("Error InsertSteps: %w", err)
 	}
+	return nil
 }
