@@ -57,16 +57,16 @@ func run() error {
 	// get access_token
 	credential, err := LoadToken(CLI.Env)
 	if err != nil {
-		return fmt.Errorf("Error LoadToken: %w", err)
+		return fmt.Errorf("error LoadToken: %w", err)
 	}
 	updated, err := credential.Refresh(CLI.Debug)
 	if err != nil {
-		return fmt.Errorf("Error Refresh: %w", err)
+		return fmt.Errorf("error Refresh: %w", err)
 	}
 	if updated {
 		// save new credential
 		if err = SaveToken(CLI.Env, credential); err != nil {
-			return fmt.Errorf("Error SaveToken: %w", err)
+			return fmt.Errorf("error SaveToken: %w", err)
 		}
 	}
 
@@ -79,15 +79,15 @@ func run() error {
 			fmt.Println("The access token was rejected, refreshing it ...")
 		}
 		if _, refreshErr := credential.refresh(true, CLI.Debug); refreshErr != nil {
-			return fmt.Errorf("Error Refresh: %w", refreshErr)
+			return fmt.Errorf("error Refresh: %w", refreshErr)
 		}
 		if err = SaveToken(CLI.Env, credential); err != nil {
-			return fmt.Errorf("Error SaveToken: %w", err)
+			return fmt.Errorf("error SaveToken: %w", err)
 		}
 		out, err = GetSteps(credential, CLI.Duration, CLI.Debug)
 	}
 	if err != nil {
-		return fmt.Errorf("Error GetSteps: %w", err)
+		return fmt.Errorf("error GetSteps: %w", err)
 	}
 	if CLI.Debug {
 		fmt.Println("Successfully fetched steps:")
@@ -99,13 +99,13 @@ func run() error {
 	// save to DB
 	db, err := sql.Open("sqlite3", CLI.Output)
 	if err != nil {
-		return fmt.Errorf("Error Open: %w", err)
+		return fmt.Errorf("error Open: %w", err)
 	}
 	defer func(conn *sql.DB) {
 		_ = conn.Close()
 	}(db)
 	if err = InsertSteps(db, out); err != nil {
-		return fmt.Errorf("Error InsertSteps: %w", err)
+		return fmt.Errorf("error InsertSteps: %w", err)
 	}
 	return nil
 }
