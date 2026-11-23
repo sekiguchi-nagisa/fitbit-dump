@@ -1,6 +1,6 @@
 module github.com/sekiguchi-nagisa/fitbit-dump
 
-go 1.24.1
+go 1.26.11
 
 require (
 	github.com/alecthomas/kong v1.17.0
