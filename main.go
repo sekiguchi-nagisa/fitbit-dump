@@ -59,6 +59,8 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("error LoadToken: %w", err)
 	}
+	// the access token is always refreshed, because the expiry recorded in the
+	// access token JSON is not reliable
 	updated, err := credential.Refresh(CLI.Debug)
 	if err != nil {
 		return fmt.Errorf("error Refresh: %w", err)
@@ -73,12 +75,11 @@ func run() error {
 	// get steps
 	out, err := GetSteps(credential, CLI.Duration, CLI.Debug)
 	if err != nil && isUnauthorized(err) && credential.RefreshToken != "" {
-		// the access token was rejected even though its recorded expiry had not
-		// passed; refresh it once and retry.
+		// the refreshed access token was rejected; refresh it once more and retry.
 		if CLI.Debug {
 			fmt.Println("The access token was rejected, refreshing it ...")
 		}
-		if _, refreshErr := credential.refresh(true, CLI.Debug); refreshErr != nil {
+		if _, refreshErr := credential.Refresh(CLI.Debug); refreshErr != nil {
 			return fmt.Errorf("error Refresh: %w", refreshErr)
 		}
 		if err = SaveToken(CLI.Env, credential); err != nil {

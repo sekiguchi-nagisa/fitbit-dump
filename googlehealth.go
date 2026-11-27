@@ -22,9 +22,6 @@ const (
 
 	// dailyRollupPageSize is the maximum number of data points of a single dailyRollUp response.
 	dailyRollupPageSize = maxRollupDays
-
-	// expiryMargin is how long before the actual expiry an access token is refreshed.
-	expiryMargin = time.Minute
 )
 
 // endpoints are variables so that tests can point them to a local server.
@@ -71,30 +68,14 @@ func SaveToken(path string, token *Token) error {
 	return os.WriteFile(path, append(body, '\n'), 0o600)
 }
 
-// expired reports whether the access token is known to be expired. When no
-// expiry is recorded the token is assumed to be usable as is, so that a hand
-// written access token JSON works without a refresh.
-func (t *Token) expired() bool {
-	if t.Expiry.IsZero() {
-		return false
-	}
-	return time.Now().Add(expiryMargin).After(t.Expiry)
-}
-
-// Refresh obtains a new access token using the refresh token if the current
-// access token has expired. It reports whether the token was updated.
+// Refresh obtains a new access token using the refresh token. The access token
+// is refreshed on every run, because the expiry recorded in the access token
+// JSON does not necessarily match the expiry known to the server. It reports
+// whether the token was updated.
 func (t *Token) Refresh(verbose bool) (bool, error) {
-	return t.refresh(false, verbose)
-}
-
-// refresh obtains a new access token. When force is false it does nothing if
-// the access token has not expired.
-func (t *Token) refresh(force bool, verbose bool) (bool, error) {
-	if !force && !t.expired() {
-		return false, nil
-	}
 	if t.RefreshToken == "" {
-		return false, errors.New("cannot refresh the access token: refresh_token is not set in the access token JSON")
+		// without a refresh token the access token has to be used as is
+		return false, nil
 	}
 	if t.ClientID == "" || t.ClientSecret == "" {
 		return false, errors.New("cannot refresh the access token: client_id and client_secret are required in the access token JSON")

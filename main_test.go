@@ -50,10 +50,10 @@ func TestRun(t *testing.T) {
 	dir := t.TempDir()
 	tokenPath := filepath.Join(dir, "token.json")
 	dbPath := filepath.Join(dir, "out.sqlite3")
+	// no refresh_token: the access token is used as is
 	if err := SaveToken(tokenPath, &Token{
-		AccessToken:  "access",
-		RefreshToken: "refresh",
-		Expiry:       time.Now().Add(time.Hour),
+		AccessToken: "access",
+		Expiry:      time.Now().Add(time.Hour),
 	}); err != nil {
 		t.Fatalf("SaveToken returned an error: %s", err)
 	}
@@ -95,7 +95,7 @@ func TestRun(t *testing.T) {
 	}
 }
 
-func TestRunRefreshesExpiredToken(t *testing.T) {
+func TestRunAlwaysRefreshesToken(t *testing.T) {
 	refreshed := false
 	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		refreshed = true
@@ -124,7 +124,8 @@ func TestRunRefreshesExpiredToken(t *testing.T) {
 		ClientSecret: "client-secret",
 		AccessToken:  "old-access",
 		RefreshToken: "refresh",
-		Expiry:       time.Now().Add(-time.Hour),
+		// the recorded expiry has not passed, but the token is refreshed anyway
+		Expiry: time.Now().Add(time.Hour),
 	}); err != nil {
 		t.Fatalf("SaveToken returned an error: %s", err)
 	}
@@ -134,7 +135,7 @@ func TestRunRefreshesExpiredToken(t *testing.T) {
 		t.Fatalf("run returned an error: %s", err)
 	}
 	if !refreshed {
-		t.Error("the expired token was not refreshed")
+		t.Error("the token was not refreshed")
 	}
 	token, err := LoadToken(tokenPath)
 	if err != nil {
@@ -146,8 +147,8 @@ func TestRunRefreshesExpiredToken(t *testing.T) {
 }
 
 func TestRunRetriesAfter401(t *testing.T) {
-	// the token JSON has no expiry, so it is used as is; the API rejects it and
-	// the dump command must refresh once and retry.
+	// the first refresh returns a token the API rejects; the dump command must
+	// refresh once more and retry.
 	var healthCalls int
 	healthSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		healthCalls++
@@ -161,6 +162,7 @@ func TestRunRetriesAfter401(t *testing.T) {
 	}))
 	defer healthSrv.Close()
 
+	tokenCalls := 0
 	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := r.ParseForm(); err != nil {
 			t.Errorf("failed to parse the form: %s", err)
@@ -175,8 +177,13 @@ func TestRunRetriesAfter401(t *testing.T) {
 				t.Errorf("%s = %q, want %q", key, got, want)
 			}
 		}
+		tokenCalls++
+		accessToken := "stale-access"
+		if tokenCalls > 1 {
+			accessToken = "fresh-access"
+		}
 		w.Header().Set("content-type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"fresh-access","expires_in":3599,"token_type":"Bearer"}`))
+		_, _ = w.Write([]byte(`{"access_token":"` + accessToken + `","expires_in":3599,"token_type":"Bearer"}`))
 	}))
 	defer tokenSrv.Close()
 
@@ -191,7 +198,6 @@ func TestRunRetriesAfter401(t *testing.T) {
 		ClientSecret: "client-secret",
 		AccessToken:  "stale-access",
 		RefreshToken: "refresh",
-		// no expiry: the token looks valid, so only the 401 triggers a refresh
 	}); err != nil {
 		t.Fatalf("SaveToken returned an error: %s", err)
 	}

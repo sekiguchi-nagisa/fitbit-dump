@@ -303,8 +303,8 @@ func TestTokenRefresh(t *testing.T) {
 	if token.RefreshToken != "refresh" {
 		t.Errorf("refresh_token = %q, want %q", token.RefreshToken, "refresh")
 	}
-	if token.expired() {
-		t.Error("the refreshed token is still expired")
+	if !token.Expiry.After(time.Now()) {
+		t.Errorf("expiry = %s, want a future time", token.Expiry)
 	}
 	for key, want := range map[string]string{
 		"grant_type":    "refresh_token",
@@ -318,28 +318,54 @@ func TestTokenRefresh(t *testing.T) {
 	}
 }
 
-func TestTokenRefreshSkipsValidToken(t *testing.T) {
+func TestTokenRefreshAlwaysRefreshes(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"new-access","expires_in":3599,"token_type":"Bearer"}`))
+	}))
+	defer srv.Close()
+
+	old := tokenEndpoint
+	tokenEndpoint = srv.URL
+	defer func() { tokenEndpoint = old }()
+
+	// a token that looks perfectly valid is still refreshed, because the expiry
+	// recorded in the access token JSON is not reliable
+	token := &Token{
+		ClientID:     "client-id",
+		ClientSecret: "client-secret",
+		AccessToken:  "access",
+		RefreshToken: "refresh",
+		Expiry:       time.Now().Add(time.Hour),
+	}
+	updated, err := token.Refresh(false)
+	if err != nil {
+		t.Fatalf("Refresh returned an error: %s", err)
+	}
+	if !updated {
+		t.Error("Refresh did not update a token that is not expired")
+	}
+	if token.AccessToken != "new-access" {
+		t.Errorf("access_token = %q, want %q", token.AccessToken, "new-access")
+	}
+}
+
+func TestTokenRefreshWithoutRefreshToken(t *testing.T) {
 	old := tokenEndpoint
 	tokenEndpoint = "http://127.0.0.1:1" // must not be called
 	defer func() { tokenEndpoint = old }()
 
-	token := &Token{AccessToken: "access", RefreshToken: "refresh", Expiry: time.Now().Add(time.Hour)}
+	// an access token JSON without a refresh token has to be used as is
+	token := &Token{AccessToken: "access", Expiry: time.Now().Add(-time.Hour)}
 	updated, err := token.Refresh(false)
 	if err != nil {
 		t.Fatalf("Refresh returned an error: %s", err)
 	}
 	if updated {
-		t.Error("Refresh updated a token that is not expired")
+		t.Error("Refresh updated a token without a refresh token")
 	}
 	if token.AccessToken != "access" {
 		t.Errorf("access_token = %q, want %q", token.AccessToken, "access")
-	}
-}
-
-func TestTokenRefreshWithoutRefreshToken(t *testing.T) {
-	token := &Token{AccessToken: "access", Expiry: time.Now().Add(-time.Hour)}
-	if _, err := token.Refresh(false); err == nil {
-		t.Error("Refresh did not return an error without a refresh token")
 	}
 }
 
@@ -364,29 +390,6 @@ func TestGetStepsZeroStepsIsStored(t *testing.T) {
 	}
 	if steps[0].Day != "2026-11-21" || steps[0].Steps != "0" {
 		t.Errorf("unexpected steps: %+v", steps[0])
-	}
-}
-
-func TestExpired(t *testing.T) {
-	tests := []struct {
-		name   string
-		expiry time.Time
-		want   bool
-	}{
-		// a hand written token without "expiry" must be used as is, otherwise
-		// every run would try to refresh it and fail without client_id.
-		{"no expiry", time.Time{}, false},
-		{"expired", time.Now().Add(-time.Hour), true},
-		{"about to expire", time.Now().Add(30 * time.Second), true},
-		{"valid", time.Now().Add(time.Hour), false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			token := &Token{AccessToken: "access", Expiry: tt.expiry}
-			if got := token.expired(); got != tt.want {
-				t.Errorf("expired() = %v, want %v", got, tt.want)
-			}
-		})
 	}
 }
 
@@ -420,34 +423,6 @@ func TestRefreshNeedsClientCredentials(t *testing.T) {
 	}
 	if called {
 		t.Error("Refresh sent a request even though client credentials are missing")
-	}
-}
-
-func TestRefreshForce(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("content-type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"forced","expires_in":3599,"token_type":"Bearer"}`))
-	}))
-	defer srv.Close()
-
-	old := tokenEndpoint
-	tokenEndpoint = srv.URL
-	defer func() { tokenEndpoint = old }()
-
-	// a token that looks valid is still refreshed when force is true
-	token := &Token{
-		ClientID:     "client-id",
-		ClientSecret: "client-secret",
-		AccessToken:  "access",
-		RefreshToken: "refresh",
-		Expiry:       time.Now().Add(time.Hour),
-	}
-	updated, err := token.refresh(true, false)
-	if err != nil {
-		t.Fatalf("refresh returned an error: %s", err)
-	}
-	if !updated || token.AccessToken != "forced" {
-		t.Errorf("token was not force refreshed: updated=%v token=%+v", updated, token)
 	}
 }
 

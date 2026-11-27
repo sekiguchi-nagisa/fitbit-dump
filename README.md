@@ -44,10 +44,12 @@ The `-e`/`--env` flag reads a JSON file in this format.
 ```
 
 Only `access_token` is required. To enable automatic refresh, also set
-`refresh_token`, `client_id` and `client_secret`; `expiry` (RFC 3339) tells the tool
-when to refresh and is rewritten after each refresh. Without `expiry` the access
-token is used as is, and if the API rejects it (401) while `refresh_token` is
-present, it is refreshed once and the request is retried.
+`refresh_token`, `client_id` and `client_secret`: the access token is then
+refreshed on every run, because the `expiry` recorded in the JSON is not
+necessarily the expiry known to the server. `expiry` (RFC 3339) is rewritten after
+each refresh and is not used to decide whether to refresh. Without `refresh_token`
+the access token is used as is, and if the API rejects it (401) while
+`refresh_token` is present, it is refreshed once and the request is retried.
 
 The scope required for reading steps is
 `https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly`.
